@@ -126,6 +126,7 @@ const rowKey = it => it.t === 'g' ? 'g:' + it.id : 'p:' + it.i;
 
 function renderVerdict() {
   const v = $('verdict');
+  v.hidden = !(ST.list || []).length; if (v.hidden) return;
   if (!S.basket) { v.innerHTML = '<p class="empty">No pude cargar los precios. Revisá la conexión y volvé a abrir la app.</p>'; return; }
   const R = recommend();
   if (!R.st.length) { v.innerHTML = '<p>Elegí al menos un súper en Ajustes.</p>'; return; }
@@ -157,7 +158,7 @@ function renderVerdict() {
 function renderList() {
   renderVerdict();
   const box = $('listBody'); const list = ST.list || [];
-  if (!list.length) { box.innerHTML = '<p class="empty">Todavía no hay nada en tu lista.</p>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="empty"><p>Tu lista está vacía.</p><p><button class="btn primary" data-go2="buscar">＋ Buscar productos</button></p><p><button class="btn" data-new="mensual">Cargar la compra mensual (52 productos)</button></p></div>'; return; }
   const st = enabled(); const groups = {};
   list.forEach((it, i) => { const e = entryOf(it); if (!e) return; (groups[e.cat] = groups[e.cat] || []).push({ it, e, i }); });
   const cats = Object.keys(groups).sort((a, b) => (CAT_ORDER.indexOf(a) + 99) % 99 - (CAT_ORDER.indexOf(b) + 99) % 99 || a.localeCompare(b));
@@ -171,15 +172,17 @@ function renderList() {
       const [s, x] = ps[0]; const off = x.l > x.p ? ` <span class="off">-${Math.round((1 - x.p / x.l) * 100)}%</span>` : '';
       sub = `<span class="best">${STORE_NAMES[s]} ${fmt(x.p)}${x.kg ? '/kg' : ''}</span>${off}${ps[1] ? ` · ${STORE_NAMES[ps[1][0]]} ${fmt(ps[1][1].p)}` : ''}${e.fresh && !ST.settings.fresh ? ' · <i>en el barrio</i>' : ''}`;
     }
-    return `<div class="row ${done ? 'done' : ''}" data-i="${i}"><input type="checkbox" class="check" ${done ? 'checked' : ''} aria-label="Ya lo tengo: ${esc(e.name)}" data-act="check"><div class="rmain" data-act="open"><div class="rname">${e.generic ? '' : '<span class="kind">Producto</span>'}${esc(e.name)}</div><div class="rsub">${sub}</div></div><div class="qty"><button data-act="dec" aria-label="Uno menos">−</button><span>${qtyTxt(it.qty)}</span><button data-act="inc" aria-label="Uno más">+</button></div></div>`;
+    return `<div class="row ${done ? 'done' : ''}" data-i="${i}"><input type="checkbox" class="check" ${done ? 'checked' : ''} aria-label="Ya lo tengo: ${esc(e.name)}" data-act="check"><div class="rmain" data-act="open"><div class="rname">${e.generic ? '' : '<span class="kind">Producto</span>'}${esc(e.name)}</div><div class="rsub">${sub}</div></div><div class="qty"><button data-act="dec" aria-label="${it.qty <= 1 ? 'Sacar de la lista' : 'Uno menos'}">${it.qty <= 1 ? '✕' : '−'}</button><span>${qtyTxt(it.qty)}</span><button data-act="inc" aria-label="Uno más">+</button></div></div>`;
   }).join('')}</div></div>`).join('');
 }
 $('listBody').addEventListener('click', ev => {
+  const g = ev.target.closest('[data-go2]'); if (g) { location.hash = g.dataset.go2; return; }
+  const nb = ev.target.closest('[data-new]'); if (nb) { newList(nb.dataset.new); return; }
   const row = ev.target.closest('.row'); if (!row) return; const i = +row.dataset.i; const it = ST.list[i]; if (!it) return;
   const act = (ev.target.closest('[data-act]') || {}).dataset?.act;
   if (act === 'inc') { it.qty = Math.round((it.qty + (it.qty < 1 ? 0.5 : 1)) * 10) / 10; }
   else if (act === 'dec') {
-    const step = it.qty <= 1 ? 0.5 : 1; it.qty = Math.round((it.qty - step) * 10) / 10;
+    it.qty = it.qty <= 1 ? 0 : Math.round((it.qty - 1) * 10) / 10;
     if (it.qty <= 0) { const e = entryOf(it); ST.list.splice(i, 1); toast(`Saqué ${e ? e.name : 'el producto'} de la lista`, () => { ST.list.splice(i, 0, Object.assign(it, { qty: 1 })); save(); renderAll(); }); }
   }
   else if (act === 'check') { const k = rowKey(it); ST.checked[k] = ev.target.checked; if (!ev.target.checked) delete ST.checked[k]; }
@@ -187,6 +190,30 @@ $('listBody').addEventListener('click', ev => {
   else return;
   save(); renderList(); badge();
 });
+
+// ---------- nueva lista ----------
+function newList(kind) {
+  const before = { list: JSON.parse(JSON.stringify(ST.list || [])), checked: Object.assign({}, ST.checked) };
+  const undo = () => { ST.list = before.list; ST.checked = before.checked; save(); renderAll(); };
+  if (kind === 'vacia') { ST.list = []; ST.checked = {}; toast('Lista borrada', undo); }
+  else if (kind === 'mensual') { ST.list = seedList(); ST.checked = {}; toast('Cargué la compra mensual', undo); }
+  else if (kind === 'tachado') {
+    const n = ST.list.filter(it => ST.checked[rowKey(it)]).length;
+    if (!n) { toast('No hay nada tachado'); return; }
+    ST.list = ST.list.filter(it => !ST.checked[rowKey(it)]); ST.checked = {}; toast(`Saqué ${n} producto${n > 1 ? 's' : ''} tachado${n > 1 ? 's' : ''}`, undo);
+  }
+  save(); closeSheet(); renderAll();
+}
+$('btnNew').onclick = () => {
+  const nCheck = (ST.list || []).filter(it => ST.checked[rowKey(it)]).length;
+  openSheet(`<h2 id="sheetTitle">Nueva lista</h2><p class="hint">Si te equivocás, tocá Deshacer en el aviso de abajo.</p>
+  <div class="newopts">
+    <button class="btn primary" data-new="vacia">🗑 Borrar todo y empezar de cero</button>
+    <button class="btn" data-new="mensual">Cargar la compra mensual (52 productos)</button>
+    <button class="btn" data-new="tachado" ${nCheck ? '' : 'disabled'}>Sacar lo que ya tachaste${nCheck ? ' (' + nCheck + ')' : ''}</button>
+  </div>`);
+  $('sheetBody').querySelector('.newopts').onclick = e => { const b = e.target.closest('[data-new]'); if (b && !b.disabled) newList(b.dataset.new); };
+};
 
 // ---------- hoja de detalle ----------
 function openSheet(html) { $('sheetBody').innerHTML = html; $('sheet').hidden = false; $('sheetBg').hidden = false; $('sheetClose').focus(); }
@@ -376,7 +403,7 @@ $('storeChips').addEventListener('change', e => { const s = e.target.dataset.st;
 $('stopCost').addEventListener('input', e => { ST.settings.stop = +e.target.value; $('stopCostVal').textContent = fmt(ST.settings.stop); save(); renderVerdict(); });
 $('max2').addEventListener('change', e => { ST.settings.max2 = e.target.checked; save(); renderVerdict(); });
 $('fresh').addEventListener('change', e => { ST.settings.fresh = e.target.checked; save(); renderList(); });
-$('btnReset').onclick = () => { if (!confirm('¿Volver a la compra mensual de 52 productos? Se borra lo que agregaste.')) return; ST.list = seedList(); ST.checked = {}; save(); renderAll(); toast('Lista restablecida'); };
+$('btnReset').onclick = () => newList('mensual');
 $('btnUncheck').onclick = () => { ST.checked = {}; save(); renderAll(); toast('Listo, todo desmarcado'); };
 
 // instalación
