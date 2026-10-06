@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Changuito Rosario</title>
+<meta name="description" content="Compará precios de Coto, Carrefour, Jumbo y Cepro en Rosario y armá tu lista del súper.">
+<meta name="theme-color" content="#0f6b4f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Changuito">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="appbar">
+  <div class="brand"><img src="icons/icon-192.png" alt="" width="30" height="30"><span>Changuito <b>Rosario</b></span></div>
+  <div class="stamp" id="stamp">Cargando…</div>
+</header>
+
+<main id="main">
+  <!-- LISTA -->
+  <section class="view" id="v-lista" aria-labelledby="t-lista">
+    <h1 class="vtitle" id="t-lista">Mi lista</h1>
+    <div class="card verdict" id="verdict" aria-live="polite"></div>
+    <div class="listtools">
+      <button class="btn primary" data-go="buscar">＋ Agregar producto</button>
+      <button class="btn" id="btnShare">Compartir</button>
+    </div>
+    <div id="listBody"></div>
+  </section>
+
+  <!-- BUSCAR -->
+  <section class="view" id="v-buscar" hidden aria-labelledby="t-buscar">
+    <h1 class="vtitle" id="t-buscar">Buscar</h1>
+    <div class="searchbar">
+      <input id="q" type="search" placeholder="Leche, yerba, detergente…" autocomplete="off" enterkeyhint="search" aria-label="Buscar productos">
+      <button class="iconbtn" id="btnScan" aria-label="Escanear código de barras" title="Escanear código de barras">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 8v8M10 8v8M13 8v8M17 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="chips scrollx" id="catChips"></div>
+    <div id="results"></div>
+  </section>
+
+  <!-- OFERTAS -->
+  <section class="view" id="v-ofertas" hidden aria-labelledby="t-ofertas">
+    <h1 class="vtitle" id="t-ofertas">Ofertas</h1>
+    <div class="seg" role="tablist" id="dealSeg">
+      <button role="tab" data-seg="lista" aria-selected="true">En tu lista</button>
+      <button role="tab" data-seg="bajas" aria-selected="false">Bajaron</button>
+      <button role="tab" data-seg="todas" aria-selected="false">Todas</button>
+      <button role="tab" data-seg="bancos" aria-selected="false">Bancos</button>
+    </div>
+    <div id="deals"></div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section class="view" id="v-ajustes" hidden aria-labelledby="t-ajustes">
+    <h1 class="vtitle" id="t-ajustes">Ajustes</h1>
+    <div class="card" id="installCard" hidden></div>
+    <div class="card form">
+      <h2>Súpers a los que llegás</h2>
+      <div class="chips" id="storeChips"></div>
+      <div class="ctl">
+        <label for="stopCost">Costo de cada parada extra <span class="num" id="stopCostVal"></span></label>
+        <input type="range" id="stopCost" min="0" max="40000" step="1000">
+        <p class="hint">Nafta o colectivo, estacionamiento y tu tiempo. Subilo si te cuesta ir a otro súper; bajalo si te queda de paso.</p>
+      </div>
+      <label class="toggle"><input type="checkbox" id="max2"><span><b>Máximo 2 lugares</b><br><span class="hint">Más de dos paradas casi nunca compensa.</span></span></label>
+      <label class="toggle"><input type="checkbox" id="fresh"><span><b>Comprar carnes, frutas y verduras en el súper</b><br><span class="hint">Apagado: quedan en la lista pero no cuentan para elegir súper (la carnicería y la verdulería del barrio suelen ganar).</span></span></label>
+    </div>
+    <div class="card">
+      <h2>Datos</h2>
+      <div id="dataStatus"></div>
+    </div>
+    <div class="card">
+      <h2>Lista</h2>
+      <p class="hint">Volver a la compra mensual de 52 productos para una casa de dos (borra lo que agregaste).</p>
+      <button class="btn" id="btnReset">Restablecer compra mensual</button>
+      <button class="btn" id="btnUncheck">Desmarcar todo lo tachado</button>
+    </div>
+    <div class="card notes">
+      <h2>Cómo leer esto</h2>
+      <ul>
+        <li>Los precios son de las tiendas online de cada cadena y se relevan una vez por día. En la góndola pueden variar un poco.</li>
+        <li>En la compra mensual cada producto es "el más barato de esa presentación", sin importar la marca. Lo que agregás desde el buscador es ese producto exacto.</li>
+        <li>Un mismo producto se reconoce entre cadenas por su código de barras. Las marcas propias (Coto, Carrefour, Cuisine &amp; Co) y Cepro no se cruzan.</li>
+        <li>Cepro es mayorista gastronómico: vende a particulares con envío desde $50.000 (Mendoza 7973).</li>
+        <li>La recomendación no suma descuentos bancarios porque dependen de tus tarjetas. Miralos en Ofertas → Bancos.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar" aria-label="Secciones">
+  <a href="#lista" data-tab="lista"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2l2.2 10.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L20.5 8H6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.5" fill="currentColor"/><circle cx="17" cy="20" r="1.5" fill="currentColor"/></svg><span>Lista</span><i class="badge" id="listBadge" hidden></i></a>
+  <a href="#buscar" data-tab="buscar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Buscar</span></a>
+  <a href="#ofertas" data-tab="ofertas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="7.5" cy="8.5" r="1.5" fill="currentColor"/></svg><span>Ofertas</span></a>
+  <a href="#ajustes" data-tab="ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Ajustes</span></a>
+</nav>
+
+<!-- hoja de detalle -->
+<div class="sheet-backdrop" id="sheetBg" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <div class="sheet-grip" aria-hidden="true"></div>
+  <button class="iconbtn sheet-close" id="sheetClose" aria-label="Cerrar">✕</button>
+  <div id="sheetBody"></div>
+</div>
+
+<!-- escáner -->
+<div class="scanner" id="scanner" hidden role="dialog" aria-modal="true" aria-label="Escanear código de barras">
+  <video id="scanVideo" playsinline muted></video>
+  <div class="scan-frame" aria-hidden="true"></div>
+  <p class="scan-msg" id="scanMsg">Apuntá al código de barras del producto</p>
+  <button class="btn scan-close" id="scanClose">Cerrar</button>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>
