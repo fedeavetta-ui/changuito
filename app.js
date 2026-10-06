@@ -87,33 +87,87 @@ function imgOf(p) {
   return h + v + '-160-160';
 }
 const enabled = () => STORE_ORDER.filter(s => ST.settings.stores[s]);
+function dropOf(e) {
+  // mayor baja de precio respecto del relevamiento anterior, entre los súpers elegidos
+  let best = null;
+  for (const s of enabled()) { const x = e && e.prices[s]; if (x && x.prev && x.p < x.prev) { const pct = Math.round((1 - x.p / x.prev) * 100); if (pct >= 3 && (!best || pct > best.pct)) best = { s, pct, prev: x.prev }; } }
+  return best;
+}
+
+// ---------- descuentos bancarios ----------
+const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const DAYS_SHORT = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+function todayIdx() { return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })).getDay(); }
+const shopDay = () => ST.settings.day == null ? todayIdx() : ST.settings.day;
+const myMethods = () => ST.settings.methods || {};
+const hasMethods = () => Object.values(myMethods()).some(Boolean);
+const methodOk = pr => pr.method.split('+').every(m => myMethods()[m]);
+const methodName = id => ((S.promos && S.promos.methods || []).find(m => m.id === id) || { name: id }).name;
+function promosFor(store, day, mineOnly = true) {
+  return ((S.promos && S.promos.items) || []).filter(pr => pr.store === store && pr.days.includes(day) && (!mineOnly || methodOk(pr)));
+}
+function promoAmount(pr, sub, freshSub) {
+  if (pr.min && sub < pr.min) return 0;
+  let d = (pr.noFresh ? Math.max(0, sub - freshSub) : sub) * pr.pct / 100;
+  if (pr.cap) d = Math.min(d, pr.cap);
+  return d;
+}
+function discountFor(store, day, sub, freshSub) {
+  if (!hasMethods()) return { amount: 0, used: [] };
+  const ps = promosFor(store, day); let best = null, bestA = 0;
+  for (const pr of ps.filter(x => !x.stack)) { const a = promoAmount(pr, sub, freshSub); if (a > bestA) { bestA = a; best = pr; } }
+  const used = best ? [best] : []; let amount = bestA;
+  for (const pr of ps.filter(x => x.stack)) { const a = promoAmount(pr, sub, freshSub); if (a > 0) { amount += a; used.push(pr); } }
+  return { amount, used };
+}
+function storeRate(store, day) {
+  // descuento aproximado (sin topes) para decidir dónde conviene cada producto
+  if (!hasMethods()) return 0;
+  const ps = promosFor(store, day);
+  return (Math.max(0, ...ps.filter(x => !x.stack && !x.min).map(x => x.pct)) + ps.filter(x => x.stack).reduce((t, x) => t + x.pct, 0)) / 100;
+}
 
 // ---------- recomendación ----------
 function subsets(arr, max) { const out = []; for (let m = 1; m < (1 << arr.length); m++) { const x = arr.filter((_, i) => m & (1 << i)); if (x.length <= max) out.push(x); } return out; }
-function plan(stores, rows) {
+const isMeat = e => e.cat === 'Carnes' || e.cat === 'Carnes y pescados';
+function plan(stores, rows, day) {
   let total = 0, missing = []; const assign = {}; stores.forEach(s => assign[s] = []);
+  const rate = Object.fromEntries(stores.map(s => [s, storeRate(s, day)]));
   for (const r of rows) {
     let best = null;
-    for (const s of stores) { const x = r.e.prices[s]; if (x && (!best || x.p < best.p)) best = { s, p: x.p }; }
+    for (const s of stores) { const x = r.e.prices[s]; if (x && (!best || x.p * (1 - rate[s]) < best.v)) best = { s, p: x.p, v: x.p * (1 - rate[s]) }; }
     if (!best) { missing.push(r); continue; }
     total += best.p * r.it.qty; assign[best.s].push({ r, cost: best.p * r.it.qty });
   }
+  const disc = {}; let discTotal = 0;
+  for (const s of stores) {
+    if (!assign[s].length) continue;
+    const sub = assign[s].reduce((t, x) => t + x.cost, 0); const meat = assign[s].filter(x => isMeat(x.r.e)).reduce((t, x) => t + x.cost, 0);
+    disc[s] = discountFor(s, day, sub, meat); discTotal += disc[s].amount;
+  }
   const used = Object.values(assign).filter(a => a.length).length;
-  return { stores, total, assign, missing, used, eff: total + Math.max(0, used - 1) * ST.settings.stop };
+  const net = total - discTotal;
+  return { stores, total, net, disc, discTotal, assign, missing, used, day, eff: net + Math.max(0, used - 1) * ST.settings.stop };
 }
 function rowsForPlan() {
   return (ST.list || []).map(it => ({ it, e: entryOf(it) })).filter(r => r.e && !(r.e.fresh && !ST.settings.fresh));
 }
-function recommend() {
+const byEff = (a, b) => a.missing.length - b.missing.length || a.eff - b.eff;
+function recommend(day = shopDay()) {
   const st = enabled(); const rows = rowsForPlan();
   if (!st.length || !rows.length) return { st, rows, best: null };
   const max = ST.settings.max2 ? 2 : st.length;
-  const plans = subsets(st, max).map(x => plan(x, rows));
-  const byEff = (a, b) => a.missing.length - b.missing.length || a.eff - b.eff;
+  const plans = subsets(st, max).map(x => plan(x, rows, day));
   const best = plans.slice().sort(byEff)[0];
   const singles = plans.filter(p => p.stores.length === 1).sort(byEff);
-  const all = plan(st, rows);
-  return { st, rows, best, singles, all };
+  const all = plan(st, rows, day);
+  return { st, rows, best, singles, all, day };
+}
+function bestDay() {
+  if (!hasMethods()) return null;
+  let bd = null;
+  for (let d = 0; d < 7; d++) { const R = recommend(d); if (R.best && (!bd || byEff(R.best, bd.best) < 0)) bd = { d, best: R.best }; }
+  return bd;
 }
 
 // ---------- vistas ----------
@@ -124,6 +178,11 @@ function badge() {
 }
 const rowKey = it => it.t === 'g' ? 'g:' + it.id : 'p:' + it.i;
 
+function dayChips() {
+  const t = todayIdx(); const d = shopDay();
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  return `<div class="daychips" role="group" aria-label="Día de compra">${order.map(i => `<button class="dchip" data-day="${i}" aria-pressed="${i === d}" title="${DAYS[i]}">${i === t ? 'Hoy' : DAYS_SHORT[i]}</button>`).join('')}</div>`;
+}
 function renderVerdict() {
   const v = $('verdict');
   v.hidden = !(ST.list || []).length; if (v.hidden) return;
@@ -131,30 +190,49 @@ function renderVerdict() {
   const R = recommend();
   if (!R.st.length) { v.innerHTML = '<p>Elegí al menos un súper en Ajustes.</p>'; return; }
   if (!R.best) { v.innerHTML = '<p class="empty">Tu lista está vacía. Agregá productos desde Buscar.</p>'; return; }
-  const b = R.best; const names = Object.keys(b.assign).filter(s => b.assign[s].length).map(s => STORE_NAMES[s]);
-  const one = R.singles[0];
+  const b = R.best; const usedS = Object.keys(b.assign).filter(s => b.assign[s].length); const names = usedS.map(s => STORE_NAMES[s]);
+  const one = R.singles[0]; const dayName = R.day === todayIdx() ? 'hoy' : 'el ' + DAYS[R.day].toLowerCase();
   let line;
   if (b.used <= 1) {
-    line = R.all.used > 1 && one && one.missing.length === R.all.missing.length
-      ? `Comprá todo en <b>${names[0]}</b>. Dividir te ahorraría ${fmt(one.total - R.all.total)}, pero con las paradas extra no compensa.`
+    line = R.all.used > 1 && one && one.missing.length === R.all.missing.length && R.all.net < one.net
+      ? `Comprá todo en <b>${names[0]}</b>. Dividir te ahorraría ${fmt(one.net - R.all.net)}, pero con las paradas extra no compensa.`
       : `Comprá todo en <b>${names[0] || '—'}</b>.`;
   } else {
     line = one && one.missing.length === b.missing.length
-      ? `Conviene dividir entre <b>${names.join(' y ')}</b>: ahorrás ${fmt(one.total - b.total)} frente a hacer todo en ${STORE_NAMES[one.stores[0]]} y, descontando ${fmt((b.used - 1) * ST.settings.stop)} por la parada extra, quedás ${fmt(one.eff - b.eff)} adelante.`
+      ? `Conviene dividir entre <b>${names.join(' y ')}</b>: ahorrás ${fmt(one.net - b.net)} frente a hacer todo en ${STORE_NAMES[one.stores[0]]} y, descontando ${fmt((b.used - 1) * ST.settings.stop)} por la parada extra, quedás ${fmt(one.eff - b.eff)} adelante.`
       : `Para cubrir la lista hace falta ir a <b>${names.join(' y ')}</b>.`;
   }
+  // descuentos
+  let promoLine = '';
+  if (hasMethods()) {
+    const usedP = usedS.filter(s => b.disc[s] && b.disc[s].amount > 0);
+    promoLine = usedP.length
+      ? `<div class="promobox">💳 Comprando ${dayName} ahorrás <b>${fmt(b.discTotal)}</b> con descuentos: ${usedP.map(s => `${STORE_NAMES[s]}: ${b.disc[s].used.map(p => esc(p.title)).join(' + ')}`).join(' · ')}.</div>`
+      : `<div class="promobox muted">💳 ${dayName[0].toUpperCase() + dayName.slice(1)} no hay descuentos con tus medios de pago en ${names.join(' ni ')}.</div>`;
+    const bd = bestDay();
+    if (bd && bd.d !== R.day && b.eff - bd.best.eff >= 500) promoLine += `<p class="hint">👉 El <b>${DAYS[bd.d].toLowerCase()}</b> te sale ${fmt(bd.best.net)} (${fmt(b.eff - bd.best.eff)} menos). <button class="linkbtn" data-day="${bd.d}">Ver ese día</button></p>`;
+  } else {
+    const any = R.st.flatMap(s => promosFor(s, R.day, false)).length;
+    promoLine = `<div class="promobox muted">💳 ${any ? `${dayName[0].toUpperCase() + dayName.slice(1)} hay ${any} descuentos bancarios en tus súpers.` : ''} <button class="linkbtn" id="goMethods">Decime con qué pagás</button> y los sumo a la cuenta.</div>`;
+  }
   const cards = [];
-  if (one) cards.push(`<div class="opt ${b.used <= 1 ? 'win' : ''}"><span class="lbl">Todo en un lugar</span><span class="big">${fmt(one.total)}</span><span class="sub">${STORE_NAMES[one.stores[0]]}${R.singles[1] ? ' · le sigue ' + STORE_NAMES[R.singles[1].stores[0]] + ' (' + fmt(R.singles[1].total) + ')' : ''}${one.missing.length ? ' · faltan ' + one.missing.length : ''}</span></div>`);
-  if (b.used > 1) cards.push(`<div class="opt win"><span class="lbl">Plan recomendado</span><span class="big">${fmt(b.total)}</span><span class="sub">${names.join(' + ')} · con traslado ${fmt(b.eff)}</span></div>`);
-  if (R.all.used > 1) cards.push(`<div class="opt"><span class="lbl">Cada cosa donde está más barata</span><span class="big">${fmt(R.all.total)}</span><span class="sub">${R.all.used} lugares · con traslado ${fmt(R.all.eff)}</span></div>`);
-  const stops = Object.keys(b.assign).filter(s => b.assign[s].length).map(s => {
-    const a = b.assign[s]; const t = a.reduce((x, y) => x + y.cost, 0);
-    return `<div class="stop"><h3><span>${STORE_NAMES[s]}</span><span class="num">${fmt(t)}</span></h3><ul>${a.map(x => `<li>${esc(x.r.e.name)}${x.r.it.qty !== 1 ? ' ×' + qtyTxt(x.r.it.qty) : ''}</li>`).join('')}</ul></div>`;
+  if (one) cards.push(`<div class="opt ${b.used <= 1 ? 'win' : ''}"><span class="lbl">Todo en un lugar</span><span class="big">${fmt(one.net)}</span><span class="sub">${STORE_NAMES[one.stores[0]]}${R.singles[1] ? ' · le sigue ' + STORE_NAMES[R.singles[1].stores[0]] + ' (' + fmt(R.singles[1].net) + ')' : ''}${one.missing.length ? ' · faltan ' + one.missing.length : ''}</span></div>`);
+  if (b.used > 1) cards.push(`<div class="opt win"><span class="lbl">Plan recomendado</span><span class="big">${fmt(b.net)}</span><span class="sub">${names.join(' + ')} · con traslado ${fmt(b.eff)}</span></div>`);
+  if (R.all.used > 1) cards.push(`<div class="opt"><span class="lbl">Cada cosa donde está más barata</span><span class="big">${fmt(R.all.net)}</span><span class="sub">${R.all.used} lugares · con traslado ${fmt(R.all.eff)}</span></div>`);
+  const stops = usedS.map(s => {
+    const a = b.assign[s]; const t = a.reduce((x, y) => x + y.cost, 0); const d = b.disc[s];
+    const dl = d && d.amount > 0 ? `<div class="hint">💳 ${d.used.map(p => esc(p.title)).join(' + ')}: −${fmt(d.amount)}</div>` : '';
+    return `<div class="stop"><h3><span>${STORE_NAMES[s]}</span><span class="num">${fmt(t - (d ? d.amount : 0))}</span></h3>${dl}<ul>${a.map(x => `<li>${esc(x.r.e.name)}${x.r.it.qty !== 1 ? ' ×' + qtyTxt(x.r.it.qty) : ''}</li>`).join('')}</ul></div>`;
   }).join('');
   const miss = b.missing.length ? `<div class="warnbox">${b.missing.length} producto${b.missing.length > 1 ? 's' : ''} de tu lista no ${b.missing.length > 1 ? 'están' : 'está'} en los súpers elegidos: ${b.missing.slice(0, 4).map(r => esc(r.e.name)).join(', ')}${b.missing.length > 4 ? '…' : ''}</div>` : '';
   const fr = !ST.settings.fresh && (ST.list || []).some(it => { const e = entryOf(it); return e && e.fresh; }) ? '<p class="hint">Sin carnes ni verdulería (se compran en el barrio). Podés sumarlas en Ajustes.</p>' : '';
-  v.innerHTML = `<div class="eyebrow">Tu compra sale</div><div class="pricetag"><small>$</small>${Math.round(b.total).toLocaleString('es-AR')}</div><p>${line}</p>${fr}<div class="opts">${cards.join('')}</div>${miss}<details class="stops"><summary>Qué comprar en cada lugar</summary>${stops}</details>`;
+  const strike = b.discTotal > 0 ? ` <span class="strike">${fmt(b.total)}</span>` : '';
+  v.innerHTML = `<div class="vhead"><div class="eyebrow">Tu compra ${dayName === 'hoy' ? 'de hoy' : dayName} sale</div>${dayChips()}</div><div class="pricetag"><small>$</small>${Math.round(b.net).toLocaleString('es-AR')}</div>${strike}<p>${line}</p>${promoLine}${fr}<div class="opts">${cards.join('')}</div>${miss}<details class="stops"><summary>Qué comprar en cada lugar</summary>${stops}</details>`;
 }
+$('verdict').addEventListener('click', e => {
+  const d = e.target.closest('[data-day]'); if (d) { const n = +d.dataset.day; ST.settings.day = n === todayIdx() ? null : n; save(); renderList(); return; }
+  if (e.target.id === 'goMethods') { location.hash = 'ajustes'; setTimeout(() => { const m = $('methodsCard'); if (m) m.scrollIntoView({ behavior: 'smooth' }); }, 80); }
+});
 function renderList() {
   renderVerdict();
   const box = $('listBody'); const list = ST.list || [];
@@ -170,7 +248,8 @@ function renderList() {
     else if (!ps.length) sub = 'No está en los súpers elegidos';
     else {
       const [s, x] = ps[0]; const off = x.l > x.p ? ` <span class="off">-${Math.round((1 - x.p / x.l) * 100)}%</span>` : '';
-      sub = `<span class="best">${STORE_NAMES[s]} ${fmt(x.p)}${x.kg ? '/kg' : ''}</span>${off}${ps[1] ? ` · ${STORE_NAMES[ps[1][0]]} ${fmt(ps[1][1].p)}` : ''}${e.fresh && !ST.settings.fresh ? ' · <i>en el barrio</i>' : ''}`;
+      const dr = dropOf(e); const drop = dr ? ` <span class="dropb">▼ ${dr.pct}% en ${STORE_NAMES[dr.s]}</span>` : '';
+      sub = `<span class="best">${STORE_NAMES[s]} ${fmt(x.p)}${x.kg ? '/kg' : ''}</span>${off}${drop}${ps[1] ? ` · ${STORE_NAMES[ps[1][0]]} ${fmt(ps[1][1].p)}` : ''}${e.fresh && !ST.settings.fresh ? ' · <i>en el barrio</i>' : ''}`;
     }
     return `<div class="row ${done ? 'done' : ''}" data-i="${i}"><input type="checkbox" class="check" ${done ? 'checked' : ''} aria-label="Ya lo tengo: ${esc(e.name)}" data-act="check"><div class="rmain" data-act="open"><div class="rname">${e.generic ? '' : '<span class="kind">Producto</span>'}${esc(e.name)}</div><div class="rsub">${sub}</div></div><div class="qty"><button data-act="dec" aria-label="${it.qty <= 1 ? 'Sacar de la lista' : 'Uno menos'}">${it.qty <= 1 ? '✕' : '−'}</button><span>${qtyTxt(it.qty)}</span><button data-act="inc" aria-label="Uno más">+</button></div></div>`;
   }).join('')}</div></div>`).join('');
@@ -254,7 +333,7 @@ function openProduct(p) {
 function addProduct(p, qty = 1) {
   const it = (ST.list || []).find(x => x.t === 'p' && x.i === p.i);
   if (it) it.qty += qty; else ST.list.push({ t: 'p', i: p.i, qty, n: p.n, c: p.c });
-  save(); badge(); renderList(); if (S.view === 'buscar') renderResults(); toast('Agregado a tu lista');
+  save(); badge(); renderList(); if (S.view === 'buscar') renderResults(); { const dr = dropOf(entryOf({ t: 'p', i: p.i })); toast(dr ? `Agregado · bajó ${dr.pct}% en ${STORE_NAMES[dr.s]} (antes ${fmt(dr.prev)})` : 'Agregado a tu lista'); }
 }
 
 // ---------- buscar ----------
@@ -289,7 +368,7 @@ function search(q) {
 function resultHtml(p) {
   const st = enabled(); const ps = st.filter(s => p.p[s]).map(s => [s, p.p[s]]).sort((a, b) => a[1][0] - b[1][0]);
   const inl = (ST.list || []).find(x => x.t === 'p' && x.i === p.i);
-  const chips = ps.map(([s, r], j) => `<span class="pchip ${j === 0 && ps.length > 1 ? 'best' : ''}">${STORE_NAMES[s]} <b>${fmt(r[0])}${r[4] ? '/kg' : ''}</b></span>`).join('');
+  const chips = ps.map(([s, r], j) => `<span class="pchip ${j === 0 && ps.length > 1 ? 'best' : ''}">${STORE_NAMES[s]} <b>${fmt(r[0])}${r[4] ? '/kg' : ''}</b>${r[5] && r[0] < r[5] ? ` <span class="dropb">▼${Math.round((1 - r[0] / r[5]) * 100)}%</span>` : ''}</span>`).join('');
   return `<div class="res" data-i="${esc(p.i)}">${thumbHtml(imgOf(p), p.n)}<div><div class="brandl">${esc(p.b || '')}</div><div class="rname">${esc(p.n)}</div><div class="pchips">${chips}</div><div class="res-foot">${inl ? `<span class="inlist">✓ En tu lista (${qtyTxt(inl.qty)})</span>` : '<span></span>'}<button class="btn small primary" data-add="1">＋ Agregar</button></div></div></div>`;
 }
 function renderResults() {
@@ -346,6 +425,7 @@ function loadScript(src) { return new Promise((ok, ko) => { if ([...document.scr
 $('btnScan').onclick = startScan; $('scanClose').onclick = stopScan;
 
 // ---------- ofertas ----------
+$('deals').addEventListener('change', e => { if (e.target.id === 'bankMine') { S.bankMine = e.target.checked; renderDeals(); } });
 $('dealSeg').addEventListener('click', e => { const b = e.target.closest('[data-seg]'); if (!b) return; S.dealSeg = b.dataset.seg; renderDeals(); });
 function dealRow(name, s, x, sub, onclick) {
   const pct = x.l > x.p ? Math.round((1 - x.p / x.l) * 100) : 0;
@@ -374,11 +454,27 @@ function renderDeals() {
     html = rows.length ? `<p class="hint" style="margin:0 2px 8px">Rebajas de 15% o más publicadas hoy en las webs.</p><div class="rows">${rows.slice(0, 80).map(x => dealRow(x.p.n, x.s, { p: x.r[0], l: x.r[1] }, `-${Math.round(x.pct * 100)}%${x.r[2] ? ' · ' + esc(x.r[2]) : ''}`, `data-pi="${esc(x.p.i)}"`)).join('')}</div>` : '<p class="empty">Las ofertas del catálogo completo aparecen después del primer relevamiento automático.</p>';
   } else {
     const P = S.promos;
-    html = P && P.items ? `<p class="hint" style="margin:0 2px 8px">${esc(P.note || '')}</p><div class="rows">${P.items.filter(x => !x.store || ST.settings.stores[x.store]).map(x => `<div class="bank"><div class="d">${esc(x.day)}</div><div><b>${esc(STORE_NAMES[x.store] || x.store)}</b> · ${esc(x.with)}</div><div class="w">${esc(x.discount)}</div></div>`).join('')}</div>${P.source ? `<p class="hint">Fuente: <a href="${esc(P.source.url)}" target="_blank" rel="noopener">${esc(P.source.name)}</a></p>` : ''}` : '<p class="empty">No pude cargar los descuentos bancarios.</p>';
+    if (!P || !P.items) html = '<p class="empty">No pude cargar los descuentos bancarios.</p>';
+    else {
+      const d = S.bankDay == null ? todayIdx() : S.bankDay; const mine = S.bankMine && hasMethods();
+      const order = [1, 2, 3, 4, 5, 6, 0];
+      const chips = `<div class="daychips wide" role="group" aria-label="Día">${order.map(i => `<button class="dchip" data-bday="${i}" aria-pressed="${i === d}">${i === todayIdx() ? 'Hoy' : DAYS[i].slice(0, 3)}</button>`).join('')}</div>`;
+      const tog = hasMethods() ? `<label class="toggle" style="margin:6px 2px"><input type="checkbox" id="bankMine" ${mine ? 'checked' : ''}><span>Solo los que puedo usar</span></label>` : `<p class="hint" style="margin:6px 2px">Elegí tus medios de pago en <a href="#ajustes">Ajustes</a> y te marco cuáles podés usar.</p>`;
+      const list = P.items.filter(x => x.days.includes(d) && ST.settings.stores[x.store] && (!mine || methodOk(x))).sort((a, b) => (methodOk(b) - methodOk(a)) || b.pct - a.pct);
+      const byStore = {}; list.forEach(x => (byStore[x.store] = byStore[x.store] || []).push(x));
+      const body = Object.keys(byStore).length ? STORE_ORDER.filter(s => byStore[s]).map(s => `<div class="group"><h3><span>${STORE_NAMES[s]}</span></h3><div class="rows">${byStore[s].map(x => {
+        const ok = hasMethods() && methodOk(x);
+        const cap = x.cap ? `tope ${fmt(x.cap)}${x.capPer ? ' por ' + x.capPer : ''}` : 'sin tope';
+        const meta = [x.min ? `compra mínima ${fmt(x.min)}` : '', cap, x.notes || ''].filter(Boolean).map(esc).join(' · ');
+        return `<div class="bank ${ok ? 'mine' : ''}"><div class="bpct">${x.stack ? '+' : ''}${x.pct}%</div><div><b>${esc(x.title)}</b>${ok ? ' <span class="okchip">✓ lo podés usar</span>' : ''}<div class="w">${x.method.split('+').map(methodName).map(esc).join(' + ')} · ${meta}</div></div></div>`;
+      }).join('')}</div></div>`).join('') : `<p class="empty">${mine ? 'Ese día no hay descuentos con tus medios de pago.' : 'No hay descuentos cargados para ese día.'}</p>`;
+      html = `${chips}${tog}${body}<p class="hint">${esc(P.note || '')}</p><p class="hint">Fuentes: ${(P.sources || []).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>`).join(' · ')}</p>`;
+    }
   }
   box.innerHTML = html;
 }
 $('deals').addEventListener('click', ev => {
+  const bd = ev.target.closest('[data-bday]'); if (bd) { S.bankDay = +bd.dataset.bday; renderDeals(); return; }
   const d = ev.target.closest('.deal'); if (!d) return;
   if (d.dataset.li != null) { const it = ST.list[+d.dataset.li]; if (it) openItem(it); }
   else if (d.dataset.pi) { const p = S.idx.get(d.dataset.pi); if (p) openProduct(p); }
@@ -396,9 +492,12 @@ function renderSettings() {
     const ok = (c && c.ok) || (b && b.ok);
     return `<div class="stat"><span><b>${STORE_NAMES[s]}</b><br><span class="hint">${c && c.n ? c.n.toLocaleString('es-AR') + ' productos' : 'catálogo pendiente'} · compra mensual ${nb}/52</span></span><span class="${ok ? 'ok' : 'bad'}">${ok ? 'Al día' : (c || b) && (c && c.at || b && b.at) ? 'Del ' + when(c && c.at ? c : b) : 'Sin datos'}</span></div>`;
   }).join('');
+  const M = (S.promos && S.promos.methods) || []; const groups = [...new Set(M.map(m => m.group))];
+  $('methodChips').innerHTML = M.length ? groups.map(g => `<div class="mgroup"><div class="hint">${esc(g)}</div><div class="chips">${M.filter(m => m.group === g).map(m => `<label class="chip"><input type="checkbox" data-method="${m.id}" ${myMethods()[m.id] ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>`).join('') : '<p class="hint">Cargando…</p>';
   $('dataStatus').innerHTML = rows + `<p class="hint">Se actualiza solo todos los días a la mañana.</p>`;
   renderInstall();
 }
+$('methodChips').addEventListener('change', e => { const m = e.target.dataset.method; if (!m) return; ST.settings.methods = Object.assign({}, myMethods(), { [m]: e.target.checked }); if (!e.target.checked) delete ST.settings.methods[m]; save(); renderList(); });
 $('storeChips').addEventListener('change', e => { const s = e.target.dataset.st; if (!s) return; ST.settings.stores[s] = e.target.checked; save(); renderAll(); });
 $('stopCost').addEventListener('input', e => { ST.settings.stop = +e.target.value; $('stopCostVal').textContent = fmt(ST.settings.stop); save(); renderVerdict(); });
 $('max2').addEventListener('change', e => { ST.settings.max2 = e.target.checked; save(); renderVerdict(); });
@@ -427,7 +526,9 @@ $('btnShare').onclick = async () => {
     }
     const fr = (ST.list || []).map(it => ({ it, e: entryOf(it) })).filter(r => r.e && r.e.fresh && !ST.settings.fresh);
     if (fr.length) txt += '\nBARRIO (carnicería y verdulería)\n' + fr.map(r => `- ${r.e.name}${r.it.qty !== 1 ? ' x' + qtyTxt(r.it.qty) : ''}`).join('\n') + '\n';
-    txt += `\nTotal estimado en súper: ${fmt(R.best.total)}`;
+    txt += `\nTotal estimado en súper: ${fmt(R.best.net)}`;
+    const ds = Object.keys(R.best.disc || {}).filter(s => R.best.disc[s].amount > 0);
+    if (ds.length) txt += `\nDescuentos (${DAYS[R.day].toLowerCase()}): ` + ds.map(s => `${STORE_NAMES[s]}: ${R.best.disc[s].used.map(p => p.title).join(' + ')}`).join(' · ');
   }
   try { if (navigator.share) { await navigator.share({ title: 'Lista del súper', text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(txt); toast('Lista copiada: pegala en WhatsApp'); } catch (e) { toast('No pude compartir desde este navegador'); }
