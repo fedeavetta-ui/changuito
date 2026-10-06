@@ -1,0 +1,11 @@
+{
+  "note": "Referencia publicada para agosto de 2026. Cambian todos los meses: confirmalos en la app de tu banco o billetera antes de ir.",
+  "source": { "name": "iProfesional, agosto 2026", "url": "https://www.iprofesional.com/finanzas/461561-coto-carrefour-y-otros-supermercados-tienen-descuentos-de-hasta-35-por-ciento-y-reintegro-agosto-2026" },
+  "items": [
+    { "day": "Martes y jueves", "store": "jumbo", "with": "BNA+ (Banco Nación)", "discount": "20% · compra mínima $100.000 · tope $25.000 por mes" },
+    { "day": "Jueves", "store": "carrefour", "with": "Mercado Pago (QR)", "discount": "15% · para jubilados ANSES · tope $20.000 por mes" },
+    { "day": "Viernes", "store": "coto", "with": "Mercado Pago (QR)", "discount": "25%" },
+    { "day": "Sábado y domingo", "store": "coto", "with": "Mercado Pago (QR)", "discount": "20%" },
+    { "day": "Todos los días", "store": "carrefour", "with": "Tarjeta Carrefour", "discount": "15% en la mayoría de los productos" }
+  ]
+}

@@ -1,0 +1,316 @@
+{
+"items": [
+{
+"cat": "Almacén",
+"id": "aceite_gir",
+"name": "Aceite de girasol 1,5 L",
+"qty": 2
+},
+{
+"cat": "Almacén",
+"id": "aceite_oliva",
+"name": "Aceite de oliva 500 ml",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "arroz",
+"name": "Arroz largo fino 1 kg",
+"qty": 2
+},
+{
+"cat": "Almacén",
+"id": "fideos",
+"name": "Fideos secos 500 g",
+"qty": 4
+},
+{
+"cat": "Almacén",
+"id": "harina",
+"name": "Harina 000 1 kg",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "polenta",
+"name": "Polenta 500 g",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "avena",
+"name": "Avena arrollada 500 g",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "lentejas",
+"name": "Lentejas 350–400 g",
+"qty": 2
+},
+{
+"cat": "Almacén",
+"id": "garbanzos",
+"name": "Garbanzos 350–400 g",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "pure_tomate",
+"name": "Puré de tomate 520 g",
+"qty": 4
+},
+{
+"cat": "Almacén",
+"id": "atun",
+"name": "Atún en lata 170 g",
+"qty": 3
+},
+{
+"cat": "Almacén",
+"id": "azucar",
+"name": "Azúcar 1 kg",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "sal",
+"name": "Sal fina 500 g",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "yerba",
+"name": "Yerba mate 1 kg",
+"qty": 2
+},
+{
+"cat": "Almacén",
+"id": "cafe",
+"name": "Café molido 250 g",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "te",
+"name": "Té en saquitos x50",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "galletitas",
+"name": "Galletitas de agua ~300 g",
+"qty": 3
+},
+{
+"cat": "Almacén",
+"id": "mermelada",
+"name": "Mermelada 390 g",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "mayonesa",
+"name": "Mayonesa 500 g",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "vinagre",
+"name": "Vinagre 500 ml",
+"qty": 1
+},
+{
+"cat": "Almacén",
+"id": "caldo",
+"name": "Caldo en cubos (caja)",
+"qty": 1
+},
+{
+"cat": "Lácteos",
+"id": "leche",
+"name": "Leche entera 1 L",
+"qty": 12
+},
+{
+"cat": "Lácteos",
+"id": "yogur",
+"name": "Yogur natural ~1 kg",
+"qty": 4
+},
+{
+"cat": "Lácteos",
+"id": "queso_cremoso",
+"name": "Queso cremoso (kg)",
+"qty": 1
+},
+{
+"cat": "Lácteos",
+"id": "queso_rallado",
+"name": "Queso rallado 120–150 g",
+"qty": 2
+},
+{
+"cat": "Lácteos",
+"id": "manteca",
+"name": "Manteca 200 g",
+"qty": 2
+},
+{
+"cat": "Lácteos",
+"id": "huevos",
+"name": "Huevos x30",
+"qty": 2
+},
+{
+"cat": "Carnes",
+"id": "carne_picada",
+"name": "Carne picada común (kg)",
+"qty": 2
+},
+{
+"cat": "Carnes",
+"id": "pollo",
+"name": "Pollo entero (kg)",
+"qty": 5
+},
+{
+"cat": "Carnes",
+"id": "milanesas",
+"name": "Nalga para milanesa (kg)",
+"qty": 1.5
+},
+{
+"cat": "Verdulería",
+"id": "papa",
+"name": "Papa (kg)",
+"qty": 4
+},
+{
+"cat": "Verdulería",
+"id": "cebolla",
+"name": "Cebolla (kg)",
+"qty": 2
+},
+{
+"cat": "Verdulería",
+"id": "tomate",
+"name": "Tomate (kg)",
+"qty": 2
+},
+{
+"cat": "Verdulería",
+"id": "zanahoria",
+"name": "Zanahoria (kg)",
+"qty": 1
+},
+{
+"cat": "Verdulería",
+"id": "lechuga",
+"name": "Lechuga (kg)",
+"qty": 1
+},
+{
+"cat": "Verdulería",
+"id": "zapallo",
+"name": "Zapallo (kg)",
+"qty": 2
+},
+{
+"cat": "Verdulería",
+"id": "banana",
+"name": "Banana (kg)",
+"qty": 3
+},
+{
+"cat": "Verdulería",
+"id": "manzana",
+"name": "Manzana (kg)",
+"qty": 3
+},
+{
+"cat": "Verdulería",
+"id": "naranja",
+"name": "Naranja (kg)",
+"qty": 3
+},
+{
+"cat": "Limpieza",
+"id": "detergente",
+"name": "Detergente 750 ml",
+"qty": 2
+},
+{
+"cat": "Limpieza",
+"id": "lavandina",
+"name": "Lavandina 2 L",
+"qty": 1
+},
+{
+"cat": "Limpieza",
+"id": "jabon_ropa",
+"name": "Jabón líquido ropa 3 L",
+"qty": 1
+},
+{
+"cat": "Limpieza",
+"id": "limpiapisos",
+"name": "Limpiador de pisos 900 ml",
+"qty": 1
+},
+{
+"cat": "Limpieza",
+"id": "esponjas",
+"name": "Esponja",
+"qty": 3
+},
+{
+"cat": "Limpieza",
+"id": "bolsas",
+"name": "Bolsas de residuo (paquete)",
+"qty": 2
+},
+{
+"cat": "Limpieza",
+"id": "rollo_cocina",
+"name": "Rollo de cocina x3",
+"qty": 1
+},
+{
+"cat": "Higiene",
+"id": "papel_hig",
+"name": "Papel higiénico x12",
+"qty": 1
+},
+{
+"cat": "Higiene",
+"id": "jabon",
+"name": "Jabón de tocador",
+"qty": 4
+},
+{
+"cat": "Higiene",
+"id": "shampoo",
+"name": "Shampoo 400 ml",
+"qty": 1
+},
+{
+"cat": "Higiene",
+"id": "acondicionador",
+"name": "Acondicionador 400 ml",
+"qty": 1
+},
+{
+"cat": "Higiene",
+"id": "pasta_dental",
+"name": "Pasta dental 90 g",
+"qty": 2
+},
+{
+"cat": "Higiene",
+"id": "desodorante",
+"name": "Desodorante aerosol",
+"qty": 2
+}
+]
+}
