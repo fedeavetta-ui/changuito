@@ -1,0 +1,53 @@
+name: Relevamiento diario
+
+on:
+  schedule:
+    - cron: "17 10 * * *"   # todos los días 7:17 de Rosario (10:17 UTC)
+  workflow_dispatch:         # botón "Run workflow" para correrlo a mano
+  push:
+    branches: [main]         # al subir cambios, solo republica la app
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: relevamiento
+  cancel-in-progress: false
+
+jobs:
+  relevar-y-publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Relevar precios
+        if: github.event_name != 'push'
+        run: node scanner/scan.mjs --prev-dir data --out data
+
+      - name: Guardar los datos en el repositorio
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "changuito-bot"
+          git config user.email "changuito-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "Precios del $(TZ=America/Argentina/Buenos_Aires date +%F)"
+          git push
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
