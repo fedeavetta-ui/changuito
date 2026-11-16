@@ -1,10 +1,10 @@
-Relevamiento 2026-11-15
-- Coto: catálogo OK (15525 productos)
+Relevamiento 2026-11-16
+- Coto: catálogo OK (15554 productos)
 - Coto: compra mensual OK (51/52)
-- Carrefour: catálogo OK (13012 productos)
+- Carrefour: catálogo OK (12881 productos)
 - Carrefour: compra mensual OK (51/52)
-- Jumbo: catálogo OK (10826 productos)
+- Jumbo: catálogo OK (10830 productos)
 - Jumbo: compra mensual OK (51/52)
 - Cepro: catálogo FALLÓ (HTTP 403 https://ceprosg.com.ar/wp-json/wc/store/v1/products?per_page=100&page=1); se mantiene el anterior
 - Cepro: compra mensual FALLÓ (0/52); se mantiene la anterior
-Productos en el catálogo unificado: 26080 (9252 en más de un súper)
+Productos en el catálogo unificado: 26037 (9211 en más de un súper)
